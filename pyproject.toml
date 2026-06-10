@@ -1,0 +1,20 @@
+[project]
+name = "inventor-mcp-server"
+version = "0.1.0"
+description = "MCP server for Autodesk Inventor parametric modeling"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp[cli]>=1.0.0",
+    "pywin32>=306",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[project.scripts]
+inventor-mcp = "src.server:main"

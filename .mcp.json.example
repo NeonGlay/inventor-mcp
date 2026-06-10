@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "inventor": {
+      "command": "python",
+      "args": ["-m", "src.server"],
+      "cwd": "C:/path/to/inventor-mcp"
+    }
+  }
+}
