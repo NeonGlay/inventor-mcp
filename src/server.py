@@ -1,7 +1,11 @@
 """MCP Server for Autodesk Inventor parametric modeling."""
 
 import json
-from mcp.server.fastmcp import FastMCP
+try:
+    # MCP Python SDK 2.x — FastMCP was renamed MCPServer
+    from mcp.server import MCPServer as FastMCP
+except ImportError:  # SDK 1.x
+    from mcp.server.fastmcp import FastMCP
 from . import inventor_api as _api
 
 mcp = FastMCP(

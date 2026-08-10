@@ -24,7 +24,7 @@ Claude: creates sketch → hexagon → extrude → tapped M16×2 hole →
 
 - Windows with **Autodesk Inventor** (developed and tested on Inventor 2026; older versions may need enum adjustments — see [docs/inventor-api-notes.md](docs/inventor-api-notes.md))
 - **Python 3.12+**
-- `pip install "mcp[cli]" pywin32`
+- `pip install "mcp[cli]" pywin32` — MCP Python SDK **1.x and 2.x** are both supported (2.x renamed `FastMCP` to `MCPServer`; the server detects which is installed)
 
 ## Installation
 
@@ -82,7 +82,7 @@ Inventor's COM API documentation is wrong or silent about many things in recent 
 ## Architecture
 
 ```
-src/server.py        FastMCP server — tool definitions (stdio transport)
+src/server.py        MCP server (FastMCP / MCPServer) — tool definitions (stdio transport)
 src/inventor_api.py  InventorConnection — COM wrapper, all geometry logic (mm units)
 skills/              Agent Skills for Claude
 docs/                Hard-won API knowledge
