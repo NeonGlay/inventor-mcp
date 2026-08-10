@@ -60,7 +60,7 @@ Claude: creates sketch → hexagon → extrude → tapped M16×2 hole →
 The `skills/` directory contains two [Agent Skills](https://code.claude.com/docs/en/skills) that teach Claude the workflow and the Inventor 2026 API quirks:
 
 - **inventor-modeling** — core patterns: units, sketch discipline, hole placement, sheet metal, diagnostic verification, common failure modes
-- **inventor-din-parts** — parametric recipes for DIN/ISO standard parts (hex nuts DIN 934, bolts DIN 933, washers DIN 125, flanges DIN 2573) with dimension tables
+- **inventor-din-parts** — parametric recipes for DIN/ISO standard parts (hex nuts DIN 934 / 439, bolts DIN 933, socket head cap screws DIN 912, countersunk screws DIN 7991, washers DIN 125, flanges DIN 2573) with dimension tables
 
 Install by copying into your skills directory:
 ```

@@ -1,6 +1,6 @@
 ---
 name: inventor-din-parts
-description: Build standard DIN/ISO mechanical parts (hex nuts, hex bolts, washers, flanges) in Autodesk Inventor via the project's MCP server, using parametric templates. Use this skill whenever the user asks for a specific standard part by designation — "DIN 934 M16 nut", "DIN 933 M20×60 bolt", "DIN 125 washer", "DIN 2573 DN150 flange", "M12 nut", "ISO 4032 nut", "stud M10×80", or Ukrainian equivalents like "гайка М16", "болт М20×60", "фланець DIN", "шайба М12". Also triggers on phrases that imply a standard part — "стандартний болт", "звичайна гайка з різьбою", "плоска шайба". This skill assumes the `inventor-modeling` skill provides the core API knowledge; consult that for general gotchas first.
+description: Build standard DIN/ISO mechanical parts (hex nuts, hex bolts, socket head and countersunk screws, washers, flanges) in Autodesk Inventor via the project's MCP server, using parametric templates. Use this skill whenever the user asks for a specific standard part by designation — "DIN 934 M16 nut", "DIN 933 M20×60 bolt", "DIN 912 M8×40", "socket head cap screw", "imbus/allen bolt", "DIN 7991 countersunk screw", "DIN 439 thin nut", "DIN 125 washer", "DIN 2573 DN150 flange", "M12 nut", "ISO 4032 nut", "ISO 4762", "stud M10×80", or Ukrainian equivalents like "гайка М16", "болт М20×60", "гвинт з внутрішнім шестигранником", "фланець DIN", "шайба М12". Also triggers on phrases that imply a standard part — "стандартний болт", "звичайна гайка з різьбою", "плоска шайба". This skill assumes the `inventor-modeling` skill provides the core API knowledge; consult that for general gotchas first.
 ---
 
 # DIN/ISO Standard Mechanical Parts — Parametric Templates
@@ -15,6 +15,9 @@ User wants a **specific standard part** with a defined designation:
 - DIN 934 / ISO 4032 hex nut
 - DIN 933 / ISO 4017 hex bolt (full thread)
 - DIN 931 / ISO 4014 hex bolt (partial thread)
+- DIN 912 / ISO 4762 socket head cap screw (hex socket, "imbus")
+- DIN 7991 / ISO 10642 countersunk socket screw (90° head)
+- DIN 439 / ISO 4035 thin hex nut
 - DIN 125 / ISO 7089 flat washer
 - DIN 127 spring washer
 - DIN 2573 / EN 1092 flange
@@ -56,6 +59,52 @@ Helper: `circumradius = s / √3`, `apothem = s / 2`.
 | M20 | 30 | 12.5 | 30…300 |
 | M24 | 36 | 15.0 | 40…300 |
 | M30 | 46 | 18.7 | 60…300 |
+
+### DIN 912 — Socket Head Cap Screw (ISO 4762)
+| Thread | dk (head Ø) | k (head height) | s (socket across flats) | Coarse pitch |
+|---|---|---|---|---|
+| M3  | 5.5  | 3.0  | 2.5 | 0.5  |
+| M4  | 7.0  | 4.0  | 3.0 | 0.7  |
+| M5  | 8.5  | 5.0  | 4.0 | 0.8  |
+| M6  | 10.0 | 6.0  | 5.0 | 1.0  |
+| M8  | 13.0 | 8.0  | 6.0 | 1.25 |
+| M10 | 16.0 | 10.0 | 8.0 | 1.5  |
+| M12 | 18.0 | 12.0 | 10.0| 1.75 |
+| M16 | 24.0 | 16.0 | 14.0| 2.0  |
+| M20 | 30.0 | 20.0 | 17.0| 2.5  |
+
+Socket depth `t`: the standard's minimum key engagement is roughly **0.5·k**; use
+`t = k/2` unless the user gives a value. Say so rather than quoting a fake figure.
+
+### DIN 7991 — Countersunk Socket Screw (ISO 10642), 90° head
+| Thread | dk (head Ø) | k (head height) | s (socket across flats) |
+|---|---|---|---|
+| M3  | 6.72  | 1.86 | 2.0  |
+| M4  | 8.96  | 2.48 | 2.5  |
+| M5  | 11.20 | 3.10 | 3.0  |
+| M6  | 13.44 | 3.72 | 4.0  |
+| M8  | 17.92 | 4.96 | 5.0  |
+| M10 | 22.40 | 6.20 | 6.0  |
+| M12 | 26.88 | 7.44 | 8.0  |
+| M16 | 33.60 | 8.80 | 10.0 |
+| M20 | 40.32 | 10.16| 12.0 |
+
+The head is a **90° cone**: it runs from `dk` at the top face down to the shank
+diameter `d` over the height `k`. `k` in the table is the "head sits flush"
+height — the length `L` of a DIN 7991 screw is measured **including** the head.
+
+### DIN 439 — Thin Hex Nut (ISO 4035)
+Across flats `s` is identical to DIN 934; only the height differs.
+
+| Thread | s | m (height) | Coarse pitch |
+|---|---|---|---|
+| M6  | 10 | 3.0  | 1.0  |
+| M8  | 13 | 4.0  | 1.25 |
+| M10 | 16 | 5.0  | 1.5  |
+| M12 | 18 | 6.0  | 1.75 |
+| M16 | 24 | 8.0  | 2.0  |
+| M20 | 30 | 10.0 | 2.5  |
+| M24 | 36 | 12.0 | 3.0  |
 
 ### DIN 125 — Flat Washer, type A (ISO 7089)
 | For thread | d1 (inner) | d2 (outer) | t (thickness) |
@@ -159,6 +208,91 @@ inv.revolve(axis="Z", operation="cut")
 ```
 
 **Threads on bolts**: Inventor does not render visible helical threads on external surfaces by default — there is no built-in API method exposed via this MCP. The bolt above is a "blank stud" geometry. For documentation drawings, add a cosmetic thread annotation in the drawing view, not on the 3D part.
+
+### DIN 912 Socket Head Cap Screw — hex socket by extrude-cut
+
+```python
+import math
+d, dk, k, s_socket, pitch, L = 8, 13.0, 8.0, 6.0, 1.25, 40   # M8x40
+t_socket = k / 2
+
+inv = InventorConnection(); inv.connect()
+inv.create_part(template="metric", name=f"SHCS_M{d}x{L}_DIN912")
+
+# 1. Cylindrical head: z = 0 … k
+inv.create_sketch("XY")
+inv.draw_circle(0, 0, dk)
+inv.extrude(k, "positive", "join")
+
+# 2. Shank: z = 0 … −L (length is measured under the head on DIN 912)
+inv.create_sketch("XY")
+inv.draw_circle(0, 0, d)
+inv.extrude(L, "negative", "join")
+
+# 3. Hex socket — sketch on an OFFSET plane at the head top, cut downward
+inv.create_sketch("XY", offset=k)
+inv.draw_polygon(0, 0, radius=s_socket / math.sqrt(3), sides=6)   # radius = circumradius!
+inv.extrude(t_socket, "negative", "cut")
+
+# 4. Small chamfer on the head's top edge (revolve-cut, same trick as DIN 934)
+inv.create_sketch("XZ")
+inv.draw_closed_profile([[dk/2 - 0.4, k], [dk/2, k], [dk/2, k - 0.4]])
+inv.revolve(axis="Z", operation="cut")
+```
+
+`draw_polygon` takes the **circumradius**, while the standard quotes the socket
+across flats `s` — always convert with `s / √3`, exactly like the nut hexagon.
+The socket must be cut from a sketch on an offset plane at `z = k`: sketching on
+the head's top *face* works too, but the face index moves as soon as you add the
+next feature.
+
+Verified build, M8×40: V = 2945 mm³ (head 1062 + shank 2011 − socket 125 − chamfer 3).
+
+### DIN 7991 Countersunk Socket Screw — conical head by revolve-join
+
+```python
+import math
+d, dk, k, s_socket, L = 8, 17.92, 4.96, 5.0, 40      # M8x40
+t_socket = 4.4
+
+inv = InventorConnection(); inv.connect()
+inv.create_part(template="metric", name=f"CSK_M{d}x{L}_DIN7991")
+
+# 1. Shank downward from the head's top face (z = 0 … −L, head included in L)
+inv.create_sketch("XY")
+inv.draw_circle(0, 0, d)
+inv.extrude(L, "negative", "join")
+
+# 2. 90° conical head — revolve a trapezoid that touches the axis
+inv.create_sketch("XZ")
+inv.draw_closed_profile([[0, 0], [dk/2, 0], [d/2, -k], [0, -k]])
+inv.revolve(axis="Z", operation="join")
+
+# 3. Hex socket from the flat top face
+inv.create_sketch("XY")
+inv.draw_polygon(0, 0, radius=s_socket / math.sqrt(3), sides=6)
+inv.extrude(t_socket, "negative", "cut")
+```
+
+The head profile must include the two points **on the axis** (`x = 0`) —
+a triangle that stops short of the axis revolves into a ring, not a cone, and
+the screw ends up hollow. Check the volume delta of step 2: a solid head adds
+material (+437 mm³ for M8), a ring adds noticeably less.
+
+Verified build, M8×40: V = 2352 mm³, bbox Ø17.92 × 40.
+
+### DIN 439 Thin Hex Nut
+
+Same recipe as DIN 934 with the smaller height `m` from the table — including the
+two revolve-cut conical chamfers. Reuse the nut template and change three numbers:
+
+```python
+thread, s, m, pitch, diameter = "M16", 24, 8.0, 2.0, 16   # DIN 439 M16
+```
+
+Verified build, M16: V = 2662 mm³, and `list_faces` shows `Cone: 2` — the same
+acid test as DIN 934. If you see 12 small planar facets instead, the Chamfer
+feature was used by mistake.
 
 ### DIN 125 Washer
 
