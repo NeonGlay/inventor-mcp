@@ -1,10 +1,31 @@
-# Inventor 2026 COM API — Field Notes
+# Inventor 2026 / 2027 COM API — Field Notes
 
-Empirically verified knowledge from driving Autodesk Inventor 2026 through `pywin32`
+Empirically verified knowledge from driving Autodesk Inventor through `pywin32`
 dynamic dispatch. Much of this contradicts the official documentation or is
 documented nowhere. Every item here was discovered by hitting the error first.
 
-## Enum values (Inventor 2026)
+## Inventor 2027 status
+
+Everything below was re-verified against **Inventor 2027** (SoftwareVersion.DisplayVersion
+`2027`, type library GUID `{D98A091D-3A0F-4C3E-B36E-61F62068D488}` v1.0) with
+`tests/smoke_test.py`: 57/57 steps pass, no code changes required.
+
+- All enum constants used by this project are **unchanged** from 2026 — verified against
+  the live type library, not just by things-still-work.
+- `ChamferFeatures.AddUsingDistance`, `HoleFeatures.CreateSketchPlacementDefinition` +
+  `CreateTapInfo("ISO Metric profile", ...)`, `FaceFeatures.CreateFaceFeatureDefinition`,
+  `FlangeFeatures.CreateFlangeDefinition`, `CutFeatures.CreateCutDefinition` and
+  `CircularPatternFeatures.Add(..., 47363)` all behave as documented here.
+- The sheet-metal flange quirk (Distance argument silently ignored, angle in radians)
+  **still applies in 2027** — the workaround via
+  `feat.Definition.HeightExtent.Distance.Expression` is still required.
+
+Reading enum values without poisoning the `gen_py` cache (see below): load the type
+library directly with `pythoncom.LoadRegTypeLib` and walk `TKIND_ENUM` type infos —
+`tests/smoke_test.py:check_enums` does exactly this and is the recommended way to
+qualify a new Inventor release.
+
+## Enum values (Inventor 2026 — identical in 2027)
 
 ```python
 # DocumentTypeEnum
