@@ -12,7 +12,8 @@ Claude: creates sketch → hexagon → extrude → tapped M16×2 hole →
 
 ## Features
 
-- **34 MCP tools**: sketching, extrude/revolve, native hole features (drilled / tapped / counterbore), fillets, chamfers, circular patterns, sheet metal (Face / Flange / Cut with Flat Pattern support), parameters
+- **47 MCP tools**: sketching, extrude/revolve, native hole features (drilled / tapped / counterbore), fillets, chamfers, circular patterns, sheet metal (Face / Flange / Cut with Flat Pattern support), parameters
+- **Assemblies (IAM)**: place components, ground them, constrain by origin geometry (mate / flush / angle) or drop a bolt into a hole with a single Insert constraint
 - **`execute_python` power tool** — run arbitrary Python against the live COM connection with a persistent namespace (escape hatch for anything not covered by dedicated tools)
 - **Auto-reporting** — every feature operation returns a volume/topology delta (`Hole1 | V 23497 (-503 mm³) | F7 E14`), so the AI can self-verify each step
 - **Transactions** — wrap multi-step builds, roll back everything with one call
@@ -22,7 +23,7 @@ Claude: creates sketch → hexagon → extrude → tapped M16×2 hole →
 
 ## Requirements
 
-- Windows with **Autodesk Inventor** (developed and tested on Inventor 2026; older versions may need enum adjustments — see [docs/inventor-api-notes.md](docs/inventor-api-notes.md))
+- Windows with **Autodesk Inventor** (developed on Inventor 2026, also verified on **Inventor 2027**; older versions may need enum adjustments — see [docs/inventor-api-notes.md](docs/inventor-api-notes.md))
 - **Python 3.12+**
 - `pip install "mcp[cli]" pywin32`
 
@@ -54,6 +55,27 @@ Claude: creates sketch → hexagon → extrude → tapped M16×2 hole →
 4. Start Inventor, then ask your AI assistant to build something.
 
 > **Do NOT use `win32com.client.gencache.EnsureDispatch`** in your own scripts against the same Python install — the generated `gen_py` cache breaks `GetActiveObject`. If it happens: delete `%LOCALAPPDATA%\Temp\gen_py`. See the API notes for the full story.
+
+## Smoke test
+
+`tests/smoke_test.py` exercises every geometry-creating code path once against a live
+Inventor and reports PASS/FAIL per step — the quickest way to qualify a new Inventor
+release or verify your install:
+
+```
+python tests/smoke_test.py            # starts Inventor if needed, closes scratch docs after
+python tests/smoke_test.py --keep     # leave the test documents open for inspection
+```
+
+It also checks every hard-coded enum constant against the live COM type library, so a
+renumbered enum in a future release shows up as a named failure instead of a cryptic
+COM error. Exit code = number of failed steps.
+
+Current results: **57/57 pass on Inventor 2027** (Python 3.12, mcp 2.0).
+
+`tests/assembly_smoke_test.py` does the same for the assembly tools — it builds a
+plate and a pin on disk, places them, and exercises mate / flush / angle / insert
+constraints (29/29 pass on Inventor 2027).
 
 ## Skills (optional, recommended)
 

@@ -10,6 +10,8 @@ mcp = FastMCP(
         "MCP server for parametric 3D modeling in Autodesk Inventor. "
         "All dimensions are in millimeters. "
         "Typical workflow: connect → create_part → create_sketch → draw geometry → extrude/revolve → save. "
+        "Assemblies: save the parts first, then create_assembly → place_component (ground the first one) "
+        "→ constrain by origin geometry / constrain_insert for bolt-in-hole. "
         "For anything not covered by a dedicated tool, use execute_python "
         "(persistent namespace, live inv/app/comp/body/tg objects). "
         "After editing inventor_api.py on disk, call reload_api — no server restart needed."
@@ -588,6 +590,141 @@ def suppress_feature(indices: str, suppressed: bool = True) -> str:
     """
     idx_list = [int(i.strip()) for i in indices.split(",")]
     return inv.suppress_feature(idx_list, suppressed)
+
+
+# ---------- Assembly (IAM) ----------
+
+@mcp.tool()
+def create_assembly(name: str = "", template: str = "metric") -> str:
+    """Create a new empty assembly document (.iam).
+
+    Args:
+        name: Display name for the assembly (optional).
+        template: "metric" (mm, default), "english" (inches), or full path to an .iam file.
+    """
+    return inv.create_assembly(name or None, template)
+
+
+@mcp.tool()
+def place_component(
+    path: str,
+    x: float = 0, y: float = 0, z: float = 0,
+    grounded: bool = False,
+) -> str:
+    """Place a part or sub-assembly into the active assembly. The file must exist
+    on disk — save_document() the part first.
+
+    Args:
+        path: Full path to the .ipt / .iam file.
+        x: X position in mm.
+        y: Y position in mm.
+        z: Z position in mm.
+        grounded: Fix the component in space. Ground the FIRST component of every
+                  assembly, otherwise constraints move it instead of the others.
+    """
+    return inv.place_component(path, x, y, z, grounded)
+
+
+@mcp.tool()
+def list_occurrences() -> str:
+    """Compact table of the assembly's components:
+    '[1] block:1  pos=(0.0,0.0,0.0) grounded'. Indices feed the constrain tools."""
+    return inv.list_occurrences()
+
+
+@mcp.tool()
+def assembly_info() -> str:
+    """Snapshot of the active assembly: components with positions, constraint
+    count, mass and volume. One call instead of several queries."""
+    return json.dumps(inv.assembly_info(), indent=1, ensure_ascii=False)
+
+
+@mcp.tool()
+def constrain(
+    occurrence1: int, geometry1: str,
+    occurrence2: int, geometry2: str,
+    kind: str = "mate",
+    offset: float = 0,
+    angle: float = 0,
+) -> str:
+    """Constrain two components by their ORIGIN geometry — the parametric way to
+    assemble. Origin constraints survive part edits; face picks break when
+    topology renumbers.
+
+    Args:
+        occurrence1: Index of the first component (see list_occurrences).
+        geometry1: "XY", "XZ", "YZ", "X", "Y", "Z" or "ORIGIN".
+        occurrence2: Index of the second component.
+        geometry2: Same options as geometry1.
+        kind: "mate" (planes face each other / axes collinear), "flush" (planes
+              point the same way) or "angle".
+        offset: Offset in mm for mate/flush.
+        angle: Angle in degrees for kind="angle".
+    """
+    return inv.constrain(occurrence1, geometry1, occurrence2, geometry2, kind, offset, angle)
+
+
+@mcp.tool()
+def constrain_insert(
+    occurrence1: int, edge1: int,
+    occurrence2: int, edge2: int,
+    offset: float = 0,
+    axes_opposed: bool = True,
+) -> str:
+    """Insert constraint between two circular edges — a bolt into a hole in one
+    call (aligns the axes AND seats the faces).
+
+    Args:
+        occurrence1: Index of the first component.
+        edge1: Circular edge index on that component (see list_component_edges).
+        occurrence2: Index of the second component.
+        edge2: Circular edge index on that component.
+        offset: Distance between the two circle planes in mm.
+        axes_opposed: True = the components face each other (normal bolt/hole case).
+    """
+    return inv.constrain_insert(occurrence1, edge1, occurrence2, edge2, offset, axes_opposed)
+
+
+@mcp.tool()
+def list_component_edges(occurrence: int, circular_only: bool = True, max_count: int = 40) -> str:
+    """Edge table of one placed component in its own part coordinates:
+    '[1] circle D=10.0 c=(0.0,0.0,10.0)'. Use to pick edges for constrain_insert.
+
+    Args:
+        occurrence: Component index (see list_occurrences).
+        circular_only: Only list circular edges (the ones Insert can use).
+        max_count: Maximum rows to return.
+    """
+    return inv.list_component_edges(occurrence, circular_only, max_count)
+
+
+@mcp.tool()
+def list_constraints() -> str:
+    """List the assembly constraints with their indices."""
+    return inv.list_constraints()
+
+
+@mcp.tool()
+def delete_constraint(index: int) -> str:
+    """Delete an assembly constraint by index (see list_constraints)."""
+    return inv.delete_constraint(index)
+
+
+@mcp.tool()
+def ground_occurrence(index: int, grounded: bool = True) -> str:
+    """Ground (fix in space) or unground a component.
+
+    Args:
+        index: Component index (see list_occurrences).
+        grounded: True to ground, False to release.
+    """
+    return inv.ground_occurrence(index, grounded)
+
+
+@mcp.tool()
+def delete_occurrence(index: int) -> str:
+    """Remove a component from the assembly (see list_occurrences for the index)."""
+    return inv.delete_occurrence(index)
 
 
 def main():

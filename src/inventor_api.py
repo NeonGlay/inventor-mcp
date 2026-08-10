@@ -20,11 +20,16 @@ kNewBodyOperation = 20485
 
 # DocumentTypeEnum
 kPartDocumentObject = 12290
+kAssemblyDocumentObject = 12291
 
 # DimensionOrientationEnum (from Inventor 2026 type library — NOT 40706/40707/40708!)
 kHorizontalDim = 19201
 kVerticalDim   = 19202
 kAlignedDim    = 19203
+
+# CurveTypeEnum (Edge.GeometryType) — verified on 2026/2027
+kLineSegmentCurve = 5123
+kCircleCurve      = 5124
 
 
 class InventorConnection:
@@ -156,6 +161,15 @@ class InventorConnection:
         if doc.DocumentType != 12290:  # kPartDocumentObject
             raise RuntimeError(
                 f"Active document is not a part (type={doc.DocumentType})."
+            )
+        return doc.ComponentDefinition
+
+    def active_assembly(self):
+        doc = self.active_document()
+        if doc.DocumentType != kAssemblyDocumentObject:
+            raise RuntimeError(
+                f"Active document is not an assembly (type={doc.DocumentType}). "
+                "Call create_assembly() or activate an .iam document."
             )
         return doc.ComponentDefinition
 
@@ -1266,3 +1280,283 @@ class InventorConnection:
             f"{k}={v}" for k, v in [("x", x), ("y", y), ("z", z)] if v is not None
         )
         raise ValueError(f"No face matching centroid ({criteria}) area≥{min_area} tol={tolerance}mm")
+
+    # ---------- Assembly (IAM) ----------
+
+    # Origin geometry of a component, addressable by name. Work planes/axes are
+    # indexed 1..3 in YZ/XZ/XY and X/Y/Z order respectively (same convention as
+    # parts, see create_sketch).
+    _ASM_GEOM = {
+        "YZ": ("WorkPlanes", 1), "XZ": ("WorkPlanes", 2), "XY": ("WorkPlanes", 3),
+        "X": ("WorkAxes", 1), "Y": ("WorkAxes", 2), "Z": ("WorkAxes", 3),
+        "ORIGIN": ("WorkPoints", 1),
+    }
+
+    def create_assembly(self, name: str | None = None, template: str = "metric") -> str:
+        """Create a new empty assembly document (.iam).
+
+        template: "metric" (Standard (mm).iam), "english", or a full .iam path.
+        """
+        import glob
+
+        templates_path = self.app.FileLocations.TemplatesPath
+        if template.lower() == "metric":
+            patterns = [
+                os.path.join(templates_path, "Metric", "Standard (mm).iam"),
+                os.path.join(templates_path, "**", "Standard (mm).iam"),
+            ]
+        elif template.lower() == "english":
+            patterns = [
+                os.path.join(templates_path, "en-US", "Standard.iam"),
+                os.path.join(templates_path, "**", "Standard.iam"),
+            ]
+        else:
+            if not os.path.exists(template):
+                raise RuntimeError(f"Template not found: {template}")
+            patterns = [template]
+
+        template_file = None
+        for pattern in patterns:
+            if "*" in pattern:
+                found = glob.glob(pattern, recursive=True)
+                if found:
+                    template_file = found[0]
+                    break
+            elif os.path.exists(pattern):
+                template_file = pattern
+                break
+        if template_file is None:
+            fallback = glob.glob(os.path.join(templates_path, "**", "*.iam"), recursive=True)
+            if not fallback:
+                raise RuntimeError(f"Cannot find an assembly template in {templates_path}")
+            template_file = fallback[0]
+
+        doc = self.app.Documents.Add(kAssemblyDocumentObject, template_file, True)
+        if name:
+            try:
+                doc.DisplayName = name
+            except Exception:
+                pass  # read-only until first save
+        return f"Assembly created: {doc.DisplayName}"
+
+    def place_component(
+        self,
+        path: str,
+        x: float = 0, y: float = 0, z: float = 0,
+        grounded: bool = False,
+    ) -> str:
+        """Place a part or sub-assembly into the active assembly at (x,y,z) mm.
+
+        The file must exist on disk — save parts before placing them.
+        Returns the occurrence index (1-based) for use in constraints.
+        """
+        comp = self.active_assembly()
+        path = os.path.abspath(path)
+        if not os.path.exists(path):
+            raise RuntimeError(f"Component file not found: {path}")
+
+        tg = self._tg()
+        matrix = tg.CreateMatrix()
+        if x or y or z:
+            matrix.SetTranslation(tg.CreateVector(x / 10.0, y / 10.0, z / 10.0))
+        occ = comp.Occurrences.Add(path, matrix)
+        if grounded:
+            occ.Grounded = True
+
+        idx = comp.Occurrences.Count
+        state = ", grounded" if grounded else ""
+        return (f"Placed '{occ.Name}' at ({x},{y},{z})mm{state} "
+                f"[occurrence {idx} of {comp.Occurrences.Count}]")
+
+    def list_occurrences(self) -> str:
+        """Compact table of the assembly's components:
+        '[i] block:1  pos=(0.0,0.0,0.0) grounded'
+        """
+        comp = self.active_assembly()
+        lines = []
+        for i in range(1, comp.Occurrences.Count + 1):
+            occ = comp.Occurrences.Item(i)
+            t = occ.Transformation.Translation
+            flags = []
+            if occ.Grounded:
+                flags.append("grounded")
+            if occ.Suppressed:
+                flags.append("suppressed")
+            lines.append(
+                f"[{i}] {occ.Name}  pos=({t.X * 10:.1f},{t.Y * 10:.1f},{t.Z * 10:.1f})"
+                + ("  " + " ".join(flags) if flags else "")
+            )
+        return "\n".join(lines) if lines else "(no components placed)"
+
+    def ground_occurrence(self, index: int, grounded: bool = True) -> str:
+        """Ground (fix in space) or unground a component. Ground the first
+        component of every assembly — otherwise constraints move it instead."""
+        comp = self.active_assembly()
+        occ = comp.Occurrences.Item(index)
+        occ.Grounded = grounded
+        return f"{'Grounded' if grounded else 'Ungrounded'}: {occ.Name}"
+
+    def delete_occurrence(self, index: int) -> str:
+        comp = self.active_assembly()
+        occ = comp.Occurrences.Item(index)
+        name = occ.Name
+        occ.Delete()
+        return f"Deleted occurrence: {name} ({comp.Occurrences.Count} left)"
+
+    def _origin_proxy(self, occ, geometry: str):
+        """Resolve 'XY' / 'X' / 'ORIGIN' on an occurrence to an assembly-context
+        geometry proxy. Constraints need the PROXY, not the part-level entity —
+        passing the raw work plane silently constrains the wrong context."""
+        key = geometry.upper()
+        if key not in self._ASM_GEOM:
+            raise ValueError(
+                f"Unknown geometry '{geometry}'. Use one of: "
+                + ", ".join(self._ASM_GEOM)
+            )
+        collection, idx = self._ASM_GEOM[key]
+        entity = getattr(occ.Definition, collection).Item(idx)
+        return occ.CreateGeometryProxy(entity)
+
+    def constrain(
+        self,
+        occurrence1: int, geometry1: str,
+        occurrence2: int, geometry2: str,
+        kind: str = "mate",
+        offset: float = 0,
+        angle: float = 0,
+    ) -> str:
+        """Constrain two components by their origin planes/axes/point.
+
+        kind:
+          "mate"   — planes face each other / axes are collinear (offset in mm)
+          "flush"  — planes point the same way (offset in mm)
+          "angle"  — angle between two planes or axes (angle in degrees)
+        geometry1/geometry2: "XY", "XZ", "YZ", "X", "Y", "Z", "ORIGIN"
+
+        Origin-geometry constraints are the parametric way to assemble: they
+        survive part edits, unlike face picks that break when topology renumbers.
+        """
+        import math
+        comp = self.active_assembly()
+        occ1 = comp.Occurrences.Item(occurrence1)
+        occ2 = comp.Occurrences.Item(occurrence2)
+        e1 = self._origin_proxy(occ1, geometry1)
+        e2 = self._origin_proxy(occ2, geometry2)
+
+        k = kind.lower()
+        if k == "mate":
+            c = comp.Constraints.AddMateConstraint(e1, e2, offset / 10.0)
+            detail = f"offset {offset}mm"
+        elif k == "flush":
+            c = comp.Constraints.AddFlushConstraint(e1, e2, offset / 10.0)
+            detail = f"offset {offset}mm"
+        elif k == "angle":
+            c = comp.Constraints.AddAngleConstraint(e1, e2, math.radians(angle))
+            detail = f"{angle}°"
+        else:
+            raise ValueError(f"Unknown constraint kind '{kind}'. Use mate, flush or angle.")
+
+        self.active_document().Update()
+        return (f"{k.capitalize()} constraint '{c.Name}': "
+                f"{occ1.Name}.{geometry1.upper()} ↔ {occ2.Name}.{geometry2.upper()} ({detail})")
+
+    def constrain_insert(
+        self,
+        occurrence1: int, edge1: int,
+        occurrence2: int, edge2: int,
+        offset: float = 0,
+        axes_opposed: bool = True,
+    ) -> str:
+        """Insert constraint between two circular edges (bolt into a hole).
+
+        edge1/edge2 are 1-based indices into each component's body-1 edge list;
+        use list_component_edges() to find the circular ones.
+        """
+        comp = self.active_assembly()
+        occ1 = comp.Occurrences.Item(occurrence1)
+        occ2 = comp.Occurrences.Item(occurrence2)
+        e1 = occ1.CreateGeometryProxy(
+            occ1.Definition.SurfaceBodies.Item(1).Edges.Item(edge1))
+        e2 = occ2.CreateGeometryProxy(
+            occ2.Definition.SurfaceBodies.Item(1).Edges.Item(edge2))
+        c = comp.Constraints.AddInsertConstraint(e1, e2, axes_opposed, offset / 10.0)
+        self.active_document().Update()
+        return (f"Insert constraint '{c.Name}': {occ1.Name} edge {edge1} ↔ "
+                f"{occ2.Name} edge {edge2} (offset {offset}mm)")
+
+    def list_component_edges(
+        self, occurrence: int, circular_only: bool = True, max_count: int = 40
+    ) -> str:
+        """Edge table of one placed component, in its own part coordinates.
+        circular_only=True lists just the circular edges — the ones an Insert
+        constraint can use."""
+        comp = self.active_assembly()
+        occ = comp.Occurrences.Item(occurrence)
+        body = occ.Definition.SurfaceBodies.Item(1)
+        lines = []
+        for i in range(1, body.Edges.Count + 1):
+            e = body.Edges.Item(i)
+            is_circular = e.GeometryType == kCircleCurve
+            if circular_only and not is_circular:
+                continue
+            if is_circular:
+                g = e.Geometry
+                c = g.Center
+                lines.append(
+                    f"[{i}] circle D={g.Radius * 20:.1f} "
+                    f"c=({c.X * 10:.1f},{c.Y * 10:.1f},{c.Z * 10:.1f})"
+                )
+            else:
+                sv, ev = e.StartVertex.Point, e.StopVertex.Point
+                lines.append(
+                    f"[{i}] edge mid=({(sv.X + ev.X) / 2 * 10:.1f},"
+                    f"{(sv.Y + ev.Y) / 2 * 10:.1f},{(sv.Z + ev.Z) / 2 * 10:.1f})"
+                )
+            if len(lines) >= max_count:
+                break
+        return "\n".join(lines) if lines else "(no matching edges)"
+
+    def list_constraints(self) -> str:
+        comp = self.active_assembly()
+        lines = []
+        for i in range(1, comp.Constraints.Count + 1):
+            c = comp.Constraints.Item(i)
+            lines.append(f"[{i}] {c.Name}" + (" (suppressed)" if c.Suppressed else ""))
+        return "\n".join(lines) if lines else "(no constraints)"
+
+    def delete_constraint(self, index: int) -> str:
+        comp = self.active_assembly()
+        c = comp.Constraints.Item(index)
+        name = c.Name
+        c.Delete()
+        self.active_document().Update()
+        return f"Deleted constraint: {name} ({comp.Constraints.Count} left)"
+
+    def assembly_info(self) -> dict:
+        """Snapshot of the active assembly: components, constraints, mass, bbox."""
+        doc = self.active_document()
+        if doc.DocumentType != kAssemblyDocumentObject:
+            raise RuntimeError("Active document is not an assembly.")
+        comp = doc.ComponentDefinition
+        info: dict = {
+            "document": doc.DisplayName,
+            "occurrences": comp.Occurrences.Count,
+            "constraints": comp.Constraints.Count,
+            "components": [],
+        }
+        for i in range(1, comp.Occurrences.Count + 1):
+            occ = comp.Occurrences.Item(i)
+            t = occ.Transformation.Translation
+            info["components"].append({
+                "index": i,
+                "name": occ.Name,
+                "position_mm": [round(t.X * 10, 3), round(t.Y * 10, 3), round(t.Z * 10, 3)],
+                "grounded": bool(occ.Grounded),
+            })
+        try:
+            mp = comp.MassProperties
+            info["mass_kg"] = round(mp.Mass, 4)
+            info["volume_mm3"] = round(mp.Volume * 1000, 1)
+        except Exception:
+            pass
+        return info
