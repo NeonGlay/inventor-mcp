@@ -8,3 +8,4 @@ __pycache__/
 OldVersions/
 gen_py/
 SUBMISSION_KIT.md
+.mcp.json
