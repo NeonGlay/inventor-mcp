@@ -17,18 +17,21 @@ Step-by-step setup of the inventor-mcp server. Follow in order.
 ## Setup steps
 
 1. Clone the repository to a stable location (avoid paths that may be deleted):
+
    ```powershell
    git clone https://github.com/NeonGlay/inventor-mcp.git
    cd inventor-mcp
    ```
 
 2. Install Python dependencies:
+
    ```powershell
    pip install "mcp[cli]" pywin32
    ```
 
 3. Register the MCP server in the client's MCP configuration. The server uses
    **stdio** transport. Configuration (adjust `cwd` to the actual clone path):
+
    ```json
    {
      "mcpServers": {
@@ -40,6 +43,7 @@ Step-by-step setup of the inventor-mcp server. Follow in order.
      }
    }
    ```
+
    - Claude Code: add to `.mcp.json` in the project root
    - Cline: add to `cline_mcp_settings.json`
    - Claude Desktop: add to `claude_desktop_config.json`
@@ -51,6 +55,7 @@ Step-by-step setup of the inventor-mcp server. Follow in order.
 ## Smoke test
 
 Ask the agent to run:
+
 1. `connect` → should report the Inventor version
 2. `create_part` with `template="metric"` → creates an empty part
 3. `create_sketch` with `plane="XY"` → `draw_circle` (diameter=50) → `extrude` (distance=10)

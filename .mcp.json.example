@@ -1,9 +1,11 @@
 {
   "mcpServers": {
     "inventor": {
-      "command": "python",
+      "command": "C:\\path\\to\\python-env\\python.exe",
       "args": ["-m", "src.server"],
-      "cwd": "C:/path/to/inventor-mcp"
+      "env": {
+        "PYTHONPATH": "C:\\path\\to\\inventor-mcp"
+      }
     }
   }
 }

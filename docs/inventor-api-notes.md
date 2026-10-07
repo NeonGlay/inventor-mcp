@@ -44,27 +44,32 @@ Angles are radians in most (but not all) places — see Flange below.
 
 But gencache is invaluable for one-off API discovery — typed signatures show
 arguments that dynamic dispatch can't tell you about. Workflow:
+
 1. Run a probe script with `EnsureDispatch` + `CastTo` in a separate process
 2. Record the signatures you need
 3. Delete `gen_py`, verify `GetActiveObject` works again
 4. Continue with dynamic dispatch
 
 With typed bindings, sheet-metal collections require casts:
+
 ```python
 smf  = CastTo(comp.Features, "SheetMetalFeatures")
 smcd = CastTo(part_doc.ComponentDefinition, "SheetMetalComponentDefinition")
 ```
+
 (Dynamic dispatch reaches `comp.Features.FlangeFeatures` directly — no cast.)
 
 ## Chamfer — API changed in 2026
 
 `CreateChamferDefinition()` was **removed**. Use:
+
 ```python
 ec = app.TransientObjects.CreateEdgeCollection()   # EdgeCollection, NOT ObjectCollection!
 ec.Add(body.Edges.Item(i))
 comp.Features.ChamferFeatures.AddUsingDistance(ec, dist_cm)
 # also: AddUsingDistanceAndAngle, AddUsingTwoDistances
 ```
+
 Put ALL edges in ONE call — edge indices renumber after each feature.
 
 ## Revolve
@@ -98,6 +103,7 @@ hf.AddCBoreByDistanceExtent(pl, 0.55, depth_cm, direction, 1.0, 0.55)
 ```
 
 Gotchas:
+
 - The hole-placement sketch must contain ONLY `SketchPoints.Add()` — a single
   construction line in it makes `AddDrilledByThroughAllExtent` fail with E_FAIL.
 - Drill direction (positive/negative) into material is not predictable from the
@@ -111,6 +117,7 @@ Gotchas:
 ```python
 tap = hf.CreateTapInfo(True, "ISO Metric profile", "M16x2", "6H", True)
 ```
+
 - ThreadType must be the **exact** sheet name from
   `Design Data\XLS\en-US\thread.xlsx` (e.g. `"ISO Metric profile"`).
 - Designation: integer pitches WITHOUT decimal — `"M16x2"`, not `"M16x2.0"`.
@@ -138,12 +145,14 @@ comp.ActiveSheetMetalStyle.Thickness = "0,8 mm"   # comma decimal on European lo
 **Face** (base panel): `ff.Add(ff.CreateFaceFeatureDefinition(profile))`.
 
 **Flange** — the big trap:
+
 ```python
 fdef = flf.CreateFlangeDefinition(edge_collection, angle_RADIANS, distance)
 feat = flf.Add(fdef)
 feat.Definition.HeightExtent.Distance.Expression = "450 mm"   # ← the real height
 doc.Update()
 ```
+
 - The `distance` argument of `CreateFlangeDefinition` is **silently ignored** —
   the flange is always created ~25 mm tall. Set the real height afterwards via
   the `Distance` Parameter's `.Expression`.
@@ -161,11 +170,11 @@ metal; extrude-built "walls" look identical but won't unfold.
 
 ## Sketch-plane axis mapping
 
-| Plane | sketch X | sketch Y |
-|---|---|---|
-| XY (WorkPlanes.Item(3)) | world +X | world +Y |
-| XZ (Item 2) | **world −X (mirrored!)** | world +Z |
-| YZ (Item 1) | world +Y | world +Z |
+| Plane                   | sketch X                 | sketch Y |
+| ----------------------- | ------------------------ | -------- |
+| XY (WorkPlanes.Item(3)) | world +X                 | world +Y |
+| XZ (Item 2)             | **world −X (mirrored!)** | world +Z |
+| YZ (Item 1)             | world +Y                 | world +Z |
 
 Offset planes: `comp.WorkPlanes.AddByPlaneAndOffset(base_wp, offset_cm)`;
 offset is along the plane normal (XY→+Z, XZ→+Y, YZ→+X). Offset-from-XY planes

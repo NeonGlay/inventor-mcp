@@ -24,34 +24,42 @@ Claude: creates sketch → hexagon → extrude → tapped M16×2 hole →
 
 - Windows with **Autodesk Inventor** (developed and tested on Inventor 2026; older versions may need enum adjustments — see [docs/inventor-api-notes.md](docs/inventor-api-notes.md))
 - **Python 3.12+**
-- `pip install "mcp[cli]" pywin32`
 
 ## Installation
 
 1. Clone this repository:
+
    ```
    git clone https://github.com/NeonGlay/inventor-mcp.git
    ```
 
 2. Install dependencies:
+
    ```
    pip install "mcp[cli]" pywin32
    ```
 
 3. Register the server with your MCP client. For Claude Code, add to `.mcp.json` in your project root (see `.mcp.json.example`):
+
    ```json
    {
      "mcpServers": {
        "inventor": {
-         "command": "python",
+         "command": "C:\\path\\to\\python-env\\python.exe",
          "args": ["-m", "src.server"],
-         "cwd": "C:/path/to/inventor-mcp"
+         "env": {
+           "PYTHONPATH": "C:\\path\\to\\inventor-mcp"
+         }
        }
      }
    }
    ```
 
-4. Start Inventor, then ask your AI assistant to build something.
+4. Start **Inventor**, then start **Claude Desktop**.
+
+5. Open a new chat and click the **"+"** / tools menu under the message box. You should see **inventor** in the list with its tools.
+
+6. Type _"Connect to Inventor"_. The reply should be something like `Connected to running Inventor 2026`.
 
 > **Do NOT use `win32com.client.gencache.EnsureDispatch`** in your own scripts against the same Python install — the generated `gen_py` cache breaks `GetActiveObject`. If it happens: delete `%LOCALAPPDATA%\Temp\gen_py`. See the API notes for the full story.
 
@@ -63,6 +71,7 @@ The `skills/` directory contains two [Agent Skills](https://code.claude.com/docs
 - **inventor-din-parts** — parametric recipes for DIN/ISO standard parts (hex nuts DIN 934, bolts DIN 933, washers DIN 125, flanges DIN 2573) with dimension tables
 
 Install by copying into your skills directory:
+
 ```
 cp -r skills/inventor-modeling ~/.claude/skills/
 cp -r skills/inventor-din-parts ~/.claude/skills/
@@ -82,7 +91,7 @@ Inventor's COM API documentation is wrong or silent about many things in recent 
 ## Architecture
 
 ```
-src/server.py        FastMCP server — tool definitions (stdio transport)
+src/server.py        MCPServer (mcp 2.x) — tool definitions (stdio transport)
 src/inventor_api.py  InventorConnection — COM wrapper, all geometry logic (mm units)
 skills/              Agent Skills for Claude
 docs/                Hard-won API knowledge
@@ -91,6 +100,7 @@ docs/                Hard-won API knowledge
 ## Contributing
 
 Contributions welcome! Especially valuable:
+
 - Testing on Inventor 2024/2025 (enum values may differ — please report)
 - Assembly (IAM) and drawing (IDW) support
 - More DIN/ISO part recipes

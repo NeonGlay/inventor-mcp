@@ -1,10 +1,10 @@
 """MCP Server for Autodesk Inventor parametric modeling."""
 
 import json
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from . import inventor_api as _api
 
-mcp = FastMCP(
+mcp = MCPServer(
     "Autodesk Inventor",
     instructions=(
         "MCP server for parametric 3D modeling in Autodesk Inventor. "
