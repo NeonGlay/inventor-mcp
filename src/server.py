@@ -2,7 +2,12 @@
 
 import json
 from mcp.server.fastmcp import FastMCP
-from . import inventor_api as _api
+
+if __package__:
+    from . import inventor_api as _api
+else:
+    # Run as a script (python src/server.py), there is no parent package.
+    import inventor_api as _api
 
 mcp = FastMCP(
     "Autodesk Inventor",
